@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,14 +30,77 @@ import {
   RefreshCw,
   PauseCircle,
   PlayCircle,
-  ShieldAlert,
   Flame,
   ChevronRight,
   TrendingUp,
   Radio,
   SlidersHorizontal,
+  Inbox,
+  BarChart3,
+  Layers,
+  ArrowUpRight,
+  Send,
+  Target,
+  Users,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+
+// 14-day discovery trend data
+const trendData = [
+  { day: "Sep 22", signals: 14, approved: 4 },
+  { day: "Sep 23", signals: 19, approved: 6 },
+  { day: "Sep 24", signals: 16, approved: 5 },
+  { day: "Sep 25", signals: 22, approved: 7 },
+  { day: "Sep 26", signals: 28, approved: 9 },
+  { day: "Sep 27", signals: 24, approved: 8 },
+  { day: "Sep 28", signals: 32, approved: 11 },
+  { day: "Sep 29", signals: 29, approved: 10 },
+  { day: "Sep 30", signals: 35, approved: 12 },
+  { day: "Oct 01", signals: 31, approved: 11 },
+  { day: "Oct 02", signals: 38, approved: 14 },
+  { day: "Oct 03", signals: 42, approved: 15 },
+  { day: "Oct 04", signals: 36, approved: 13 },
+  { day: "Oct 05", signals: 44, approved: 16 },
+];
+
+// Sparkline data for cards
+const sparklineQueue = [
+  { v: 3 }, { v: 6 }, { v: 4 }, { v: 8 }, { v: 5 }, { v: 9 }, { v: 4 }
+];
+const sparklineApproval = [
+  { v: 60 }, { v: 65 }, { v: 70 }, { v: 68 }, { v: 74 }, { v: 76 }
+];
+
+// Platform distribution data
+const platformDistribution = [
+  { name: "Reddit", value: 45, color: "#f97316" },
+  { name: "X (Twitter)", value: 30, color: "#0ea5e9" },
+  { name: "Hacker News", value: 15, color: "#f59e0b" },
+  { name: "LinkedIn", value: 10, color: "#3b82f6" },
+];
+
+// Source yield data for bar chart
+const sourceYieldData = [
+  { source: "r/QA", yield: 78 },
+  { source: "HN Ask", yield: 75 },
+  { source: "r/react", yield: 71 },
+  { source: "r/webdev", yield: 69 },
+  { source: "X Keyword", yield: 62 },
+];
 
 export default function TodayPage() {
   const {
@@ -52,12 +116,15 @@ export default function TodayPage() {
     setEdgeState,
     triggerManualScan,
     toggleMissionStatus,
+    sendWhatsAppTestMessage,
+    whatsAppStatus,
   } = useDashboard();
 
+  const [activeTab, setActiveTab] = useState("queue");
   const [editingOppId, setEditingOppId] = useState<string | null>(null);
   const [editedDraftText, setEditedDraftText] = useState<string>("");
 
-  // Filter pending opportunities for today's queue
+  // Pending opportunities for today
   const queueOpportunities = opportunities.filter(
     (o) => o.status === "new" || o.status === "drafted"
   );
@@ -80,7 +147,7 @@ export default function TodayPage() {
     setEditedDraftText("");
   };
 
-  // Platform badges helper
+  // Helper for platform tags
   const renderPlatformBadge = (platform: string, subreddit?: string) => {
     switch (platform) {
       case "reddit":
@@ -114,421 +181,379 @@ export default function TodayPage() {
 
   const goalPercent = Math.min(
     100,
-    Math.round(
-      (activeMission.target_metric.current / activeMission.target_metric.goal) * 100
-    )
+    Math.round((activeMission.target_metric.current / activeMission.target_metric.goal) * 100)
   );
 
   return (
     <div className="space-y-6">
-      {/* 1. Mission Header with Goal Progress Strip */}
-      <Card className="border-border bg-card/60 backdrop-blur-sm overflow-hidden shadow-none">
-        <div className="p-5 sm:p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Badge
-                  variant="outline"
-                  className={
-                    activeMission.status === "active"
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                      : "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                  }
-                >
-                  {activeMission.status === "active" ? "Mission Active" : "Mission Paused"}
-                </Badge>
-                <span className="text-xs text-muted-foreground font-mono">
-                  Spec v{activeMission.spec_version}
-                </span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                {activeMission.title}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-0.5 max-w-3xl">
-                {activeMission.goal_text}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
+      {/* 1. Header Banner & Mission Status Card */}
+      <Card className="rounded-xl border border-border/70 bg-card p-6 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge
                 variant="outline"
-                size="sm"
-                onClick={() => toggleMissionStatus(activeMission.id)}
-                className="gap-1.5 text-xs cursor-pointer"
+                className={`text-xs font-medium ${
+                  activeMission.status === "active"
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                }`}
               >
-                {activeMission.status === "active" ? (
-                  <>
-                    <PauseCircle className="size-3.5 text-amber-500" />
-                    Pause Mission
-                  </>
-                ) : (
-                  <>
-                    <PlayCircle className="size-3.5 text-emerald-500" />
-                    Resume Mission
-                  </>
-                )}
-              </Button>
-              <Link href="/mission">
-                <Button variant="outline" size="sm" className="text-xs gap-1 cursor-pointer">
-                  Configure <ChevronRight className="size-3" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          {/* Goal Progress Bar */}
-          <div className="pt-2 border-t border-border">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-medium text-foreground flex items-center gap-1.5">
-                <TrendingUp className="size-3.5 text-primary" />
-                Mission Milestone: {activeMission.target_metric.current} of {activeMission.target_metric.goal} {activeMission.target_metric.unit}
+                {activeMission.status === "active" ? "Mission Active" : "Mission Paused"}
+              </Badge>
+              <span className="text-xs text-muted-foreground font-mono">
+                Spec v{activeMission.spec_version}
               </span>
-              <span className="font-semibold text-primary">{goalPercent}% completed</span>
             </div>
-            <Progress value={goalPercent} className="h-2" />
+
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              {activeMission.title}
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-3xl leading-relaxed">
+              {activeMission.goal_text}
+            </p>
           </div>
 
-          {/* Audience & Channels preview pills */}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground pt-1">
-            <span className="font-medium text-foreground">Audience:</span>
-            <span className="truncate max-w-md">{activeMission.audience}</span>
-            <span>•</span>
-            <span className="font-medium text-foreground">Channels:</span>
-            <span className="truncate">{activeMission.channels.join(", ")}</span>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toggleMissionStatus(activeMission.id)}
+              className="h-9 px-3 text-xs gap-1.5 cursor-pointer rounded-lg"
+            >
+              {activeMission.status === "active" ? (
+                <>
+                  <PauseCircle className="size-3.5 text-amber-500" />
+                  Pause Mission
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="size-3.5 text-emerald-500" />
+                  Resume Mission
+                </>
+              )}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={triggerManualScan}
+              className="h-9 px-3 text-xs gap-1.5 cursor-pointer rounded-lg"
+            >
+              <RefreshCw className="size-3.5" />
+              Scan Now
+            </Button>
+
+            <Link href="/mission">
+              <Button size="sm" className="h-9 px-3.5 text-xs gap-1.5 cursor-pointer rounded-lg">
+                Mission Spec <ChevronRight className="size-3.5" />
+              </Button>
+            </Link>
           </div>
+        </div>
+
+        {/* Milestone Progress Bar inside Header Card */}
+        <div className="pt-4 mt-5 border-t border-border/60">
+          <div className="flex items-center justify-between text-xs mb-2">
+            <div className="flex items-center gap-2">
+              <Target className="size-3.5 text-primary" />
+              <span className="font-semibold text-foreground">
+                Validation Goal: {activeMission.target_metric.current} / {activeMission.target_metric.goal} {activeMission.target_metric.unit}
+              </span>
+            </div>
+            <span className="font-bold text-primary font-mono">{goalPercent}% Reached</span>
+          </div>
+          <Progress value={goalPercent} className="h-2 rounded-full" />
         </div>
       </Card>
 
-      {/* Edge State Simulation Switcher (Lets user preview all edge states described in dashboard-pages.md) */}
-      <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border text-xs">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="size-3.5 text-muted-foreground" />
-          <span className="font-medium text-foreground">Simulate Edge States:</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {(
-            [
-              { id: "normal", label: "Normal Queue" },
-              { id: "first_scan", label: "First Scan Running" },
-              { id: "empty_queue", label: "Empty Queue" },
-              { id: "mission_paused", label: "Mission Paused" },
-              { id: "quota_used_up", label: "Quota Exhausted" },
-              { id: "channel_disconnected", label: "Channel Offline" },
-            ] as const
-          ).map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setEdgeState(s.id)}
-              className={`px-2 py-1 rounded text-[11px] font-medium transition cursor-pointer ${
-                edgeState === s.id
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-background hover:bg-muted text-muted-foreground border border-border"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+      {/* 2. Top Metric Cards Strip (Card-wise Stats with Mini Charts) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Queue Waiting */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Pending Review</span>
+              <Inbox className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {edgeState === "empty_queue" ? 0 : queueOpportunities.length}
+              </span>
+              <span className="text-xs text-muted-foreground">cards today</span>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">{approvedToday} approved so far</span>
+            <div className="w-16 h-6 min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <AreaChart data={sparklineQueue}>
+                  <Area type="monotone" dataKey="v" stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </Card>
+
+        {/* Card 2: Approval Rate */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Approval Yield</span>
+              <TrendingUp className="size-4 text-emerald-500" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                76.4%
+              </span>
+              <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 py-0">
+                +8.2%
+              </Badge>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">High-intent filtering</span>
+            <div className="w-16 h-6 min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={sparklineApproval}>
+                  <Bar dataKey="v" fill="#10b981" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </Card>
+
+        {/* Card 3: Discovery Interviews */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Customer Calls</span>
+              <Users className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                9 <span className="text-base text-muted-foreground font-normal">/ 15</span>
+              </span>
+              <span className="text-xs text-emerald-600 font-medium font-mono">Ahead (+3)</span>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>Next booked: Tomorrow, 3 PM</span>
+            <Link href="/conversations" className="text-primary hover:underline">Pipeline</Link>
+          </div>
+        </Card>
+
+        {/* Card 4: Monthly Quota Left */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Quota Fuel</span>
+              <Zap className="size-4 text-amber-500 fill-amber-500" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {quota.monthlyUsed} <span className="text-base text-muted-foreground font-normal">/ {quota.monthlyLimit}</span>
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">
+                {quota.monthlyLimit - quota.monthlyUsed} left
+              </span>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40">
+            <Progress
+              value={Math.round((quota.monthlyUsed / quota.monthlyLimit) * 100)}
+              className="h-1.5"
+            />
+          </div>
+        </Card>
       </div>
 
-      {/* Render Edge States if selected */}
-      {edgeState === "first_scan" && (
-        <Card className="p-8 text-center border-dashed border-2">
-          <div className="max-w-md mx-auto space-y-3">
-            <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto animate-pulse">
-              <RefreshCw className="size-6 text-primary animate-spin" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">First Scan in Progress</h3>
-            <p className="text-sm text-muted-foreground">
-              Your autonomous agent is currently crawling Reddit (r/webdev, r/reactjs), X feeds, and Hacker News based on your mission spec. This takes 2–3 minutes.
-            </p>
-            <div className="pt-2">
-              <Button size="sm" onClick={() => setEdgeState("normal")} className="cursor-pointer">
-                Refresh & Load Matches
-              </Button>
-            </div>
+      {/* 3. Main Card-wise Content with Proper Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+          <TabsList className="bg-muted/50 p-1 rounded-xl h-auto">
+            <TabsTrigger
+              value="queue"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Inbox className="size-3.5" />
+              Approval Queue ({edgeState === "empty_queue" ? 0 : queueOpportunities.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="analytics"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <BarChart3 className="size-3.5" />
+              Trends & Discovery Charts
+            </TabsTrigger>
+            <TabsTrigger
+              value="edge_states"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Simulation Sandbox
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+            <span>Last Scan: {agentStatus.lastRun}</span>
+            <span>•</span>
+            <span className="text-emerald-600">Harness Active</span>
           </div>
-        </Card>
-      )}
+        </div>
 
-      {edgeState === "mission_paused" && (
-        <Card className="p-8 text-center border-amber-500/30 bg-amber-500/5">
-          <div className="max-w-md mx-auto space-y-3">
-            <PauseCircle className="size-12 text-amber-500 mx-auto" />
-            <h3 className="text-lg font-semibold text-foreground">Mission is Currently Paused</h3>
-            <p className="text-sm text-muted-foreground">
-              Scanning and auto-drafting are suspended. Existing queued opportunities are preserved. Click Resume to restart the background harness.
-            </p>
-            <div className="pt-2">
-              <Button
-                size="sm"
-                onClick={() => {
-                  toggleMissionStatus(activeMission.id);
-                  setEdgeState("normal");
-                }}
-                className="cursor-pointer gap-1.5"
-              >
-                <PlayCircle className="size-4" /> Resume Mission
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {edgeState === "quota_used_up" && (
-        <Card className="p-8 text-center border-destructive/30 bg-destructive/5">
-          <div className="max-w-md mx-auto space-y-3">
-            <Zap className="size-12 text-destructive mx-auto" />
-            <h3 className="text-lg font-semibold text-foreground">Monthly Action Quota Exhausted</h3>
-            <p className="text-sm text-muted-foreground">
-              You have used all 100/100 outreach actions for this billing cycle. Upgrade to Scale tier for unlimited automated approvals.
-            </p>
-            <div className="pt-2 flex justify-center gap-2">
-              <Link href="/billing">
-                <Button size="sm" className="cursor-pointer">Upgrade Plan</Button>
-              </Link>
-              <Button size="sm" variant="outline" onClick={() => setEdgeState("normal")}>
-                Dismiss
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {edgeState === "channel_disconnected" && (
-        <Card className="p-8 text-center border-amber-500/30 bg-amber-500/5">
-          <div className="max-w-md mx-auto space-y-3">
-            <AlertTriangle className="size-12 text-amber-500 mx-auto" />
-            <h3 className="text-lg font-semibold text-foreground">Primary Channel Disconnected</h3>
-            <p className="text-sm text-muted-foreground">
-              LinkedIn & X token authorizations need attention before automated drafts can be dispatched.
-            </p>
-            <div className="pt-2">
-              <Link href="/channels">
-                <Button size="sm" className="cursor-pointer">Reconnect Channels</Button>
-              </Link>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Main Today Approval Queue (Normal Mode) */}
-      {(edgeState === "normal" || edgeState === "empty_queue") && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Approval Cards Stream */}
-          <div className="lg:col-span-8 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                  <span>Today&apos;s Approval Queue</span>
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    {edgeState === "empty_queue" ? 0 : queueOpportunities.length} pending
-                  </Badge>
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Review matches found by your agent. Approving dispatches outreach via your connected channel.
-                </p>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={triggerManualScan}
-                className="text-xs gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="size-3" />
-                Scan Now
-              </Button>
-            </div>
-
-            {edgeState === "empty_queue" || queueOpportunities.length === 0 ? (
-              <Card className="p-12 text-center border-dashed">
-                <div className="max-w-sm mx-auto space-y-3">
-                  <div className="size-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="size-6 text-emerald-600" />
+        {/* TAB 1: THE CORE APPROVAL QUEUE */}
+        <TabsContent value="queue" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left 8 cols: Card Deck */}
+            <div className="lg:col-span-8 space-y-4">
+              {edgeState === "empty_queue" || queueOpportunities.length === 0 ? (
+                <Card className="rounded-xl border border-dashed border-border p-12 text-center shadow-none">
+                  <div className="max-w-sm mx-auto space-y-3">
+                    <div className="size-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto text-emerald-600">
+                      <CheckCircle2 className="size-6" />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground">
+                      Queue is completely cleared!
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      You have reviewed all pending opportunities. Your agent is scheduled to scan active watchlists in 48 minutes.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={triggerManualScan}
+                      className="text-xs gap-1.5 cursor-pointer rounded-lg"
+                    >
+                      <RefreshCw className="size-3.5" /> Trigger Instant Crawl
+                    </Button>
                   </div>
-                  <h3 className="font-semibold text-base text-foreground">
-                    All caught up for today!
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    No pending items waiting in your queue. Your agent is scheduled to scan again in 48 minutes.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={triggerManualScan}
-                    className="text-xs gap-1.5 cursor-pointer"
-                  >
-                    <RefreshCw className="size-3" /> Trigger Instant Scan
-                  </Button>
-                </div>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {queueOpportunities.map((opp) => {
+                </Card>
+              ) : (
+                queueOpportunities.map((opp) => {
                   const draft = opp.drafts[0];
                   const isEditing = editingOppId === opp.id;
 
                   return (
                     <Card
                       key={opp.id}
-                      className="border-border hover:border-primary/40 transition-all duration-200 overflow-hidden shadow-none"
+                      className="rounded-xl border border-border/80 bg-card p-6 shadow-xs hover:border-primary/40 transition-all duration-200 space-y-4"
                     >
-                      {/* Card Header: Platform, Score, Recency */}
-                      <CardHeader className="p-4 pb-3 border-b border-border/60 bg-muted/20">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            {renderPlatformBadge(opp.signal.platform, opp.signal.subreddit)}
-                            <span className="text-xs font-semibold text-foreground">
-                              {opp.signal.author_handle}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {opp.signal.posted_at}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {/* Score Breakdown Pill */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition cursor-pointer">
-                                <Flame className="size-3" />
-                                {Math.round(opp.score * 100)}% Match
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56 p-3 space-y-2">
-                                <DropdownMenuLabel className="p-0 text-xs font-semibold">
-                                  Relevance Breakdown
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Pain Intensity:</span>
-                                    <span className="font-semibold text-foreground">
-                                      {Math.round(opp.score_breakdown.pain * 100)}%
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Audience Fit:</span>
-                                    <span className="font-semibold text-foreground">
-                                      {Math.round(opp.score_breakdown.fit * 100)}%
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Recency Signal:</span>
-                                    <span className="font-semibold text-foreground">
-                                      {Math.round(opp.score_breakdown.recency * 100)}%
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Willingness to Pay:</span>
-                                    <span className="font-semibold text-foreground">
-                                      {Math.round(opp.score_breakdown.wtp * 100)}%
-                                    </span>
-                                  </div>
-                                </div>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            <a
-                              href={opp.signal.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                              title="Open original discussion"
-                            >
-                              <ExternalLink className="size-3.5" />
-                            </a>
-                          </div>
+                      {/* Card Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/60">
+                        <div className="flex items-center gap-2.5">
+                          {renderPlatformBadge(opp.signal.platform, opp.signal.subreddit)}
+                          <span className="font-semibold text-xs text-foreground font-mono">
+                            {opp.signal.author_handle}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            • {opp.signal.posted_at}
+                          </span>
                         </div>
-                      </CardHeader>
 
-                      {/* Card Content: Original Excerpt + Why Match */}
-                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-mono font-bold flex items-center gap-1 px-2.5 py-0.5">
+                            <Flame className="size-3" />
+                            {Math.round(opp.score * 100)}% Match
+                          </Badge>
+
+                          <a
+                            href={opp.signal.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1 rounded-md text-muted-foreground hover:text-foreground transition cursor-pointer"
+                            title="Open original discussion"
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Discussion Quote */}
+                      <div className="space-y-2">
                         {opp.signal.title && (
-                          <h3 className="font-semibold text-sm text-foreground leading-snug">
+                          <h3 className="font-bold text-sm text-foreground leading-snug">
                             {opp.signal.title}
                           </h3>
                         )}
-
-                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 bg-muted/30 p-2.5 rounded-lg border border-border/40 font-normal">
+                        <p className="text-xs text-muted-foreground leading-relaxed bg-muted/30 p-3.5 rounded-lg border border-border/40 font-normal">
                           &ldquo;{opp.signal.body}&rdquo;
                         </p>
+                      </div>
 
-                        {/* Why Match Explanation */}
-                        <div className="flex items-start gap-2 text-xs bg-primary/5 border border-primary/15 rounded-lg p-2.5">
-                          <Sparkles className="size-3.5 text-primary shrink-0 mt-0.5" />
-                          <p className="text-foreground leading-relaxed">
-                            <span className="font-semibold text-primary">Why match: </span>
-                            {opp.why_match}
-                          </p>
+                      {/* AI Why-Match Reason */}
+                      <div className="flex items-start gap-2.5 text-xs bg-primary/5 border border-primary/15 rounded-lg p-3">
+                        <Sparkles className="size-4 text-primary shrink-0 mt-0.5" />
+                        <div className="leading-relaxed text-foreground">
+                          <strong className="text-primary font-semibold">Why this matches: </strong>
+                          {opp.why_match}
                         </div>
+                      </div>
 
-                        {/* AI Draft Preview / Editor */}
-                        {draft && (
-                          <div className="space-y-2 pt-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-medium text-foreground flex items-center gap-1.5">
-                                <MessageCircle className="size-3.5 text-primary" />
-                                Proposed Outreach Draft:
+                      {/* Proposed Draft */}
+                      {draft && (
+                        <div className="space-y-2.5 pt-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-foreground flex items-center gap-1.5">
+                              <MessageCircle className="size-3.5 text-primary" />
+                              Calibrated Outreach Draft
+                            </span>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono">
+                              <span>{draft.quality_checks.length} chars</span>
+                              <span>•</span>
+                              <span className="text-emerald-600 font-semibold">
+                                {draft.quality_checks.tone_match}% tone match
                               </span>
-                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                                <span>{draft.quality_checks.length} chars</span>
-                                <span>•</span>
-                                <span className="text-emerald-600 font-medium">
-                                  {draft.quality_checks.tone_match}% tone match
-                                </span>
-                                <span>•</span>
-                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
-                                  Spam Risk: {draft.quality_checks.spam_risk}
-                                </Badge>
+                              <span>•</span>
+                              <span className="capitalize">Spam risk: {draft.quality_checks.spam_risk}</span>
+                            </div>
+                          </div>
+
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                rows={5}
+                                value={editedDraftText}
+                                onChange={(e) => setEditedDraftText(e.target.value)}
+                                className="text-xs font-mono leading-relaxed"
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleCancelEdit}
+                                  className="h-8 text-xs cursor-pointer rounded-lg"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSaveAndApprove(opp.id)}
+                                  className="h-8 text-xs gap-1.5 cursor-pointer rounded-lg"
+                                >
+                                  <CheckCircle2 className="size-3.5" /> Save & Approve
+                                </Button>
                               </div>
                             </div>
+                          ) : (
+                            <div className="p-3.5 rounded-lg border border-border bg-background text-xs text-foreground leading-relaxed whitespace-pre-line font-normal">
+                              {draft.body}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                            {isEditing ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  rows={5}
-                                  value={editedDraftText}
-                                  onChange={(e) => setEditedDraftText(e.target.value)}
-                                  className="text-xs font-mono leading-relaxed"
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={handleCancelEdit}
-                                    className="h-7 text-xs cursor-pointer"
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleSaveAndApprove(opp.id)}
-                                    className="h-7 text-xs gap-1.5 cursor-pointer"
-                                  >
-                                    <CheckCircle2 className="size-3.5" /> Save & Approve
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="p-3 rounded-lg border border-border bg-background text-xs text-foreground leading-relaxed whitespace-pre-line font-normal">
-                                {draft.body}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-
-                      {/* Card Footer: Action Buttons */}
-                      <CardFooter className="p-4 pt-2 border-t border-border flex flex-wrap items-center justify-between gap-2 bg-muted/10">
-                        {/* Negative actions: Bad Match dropdown & Skip */}
+                      {/* Action Bar */}
+                      <div className="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
+                        {/* Negative Actions */}
                         <div className="flex items-center gap-1.5">
                           <DropdownMenu>
                             <DropdownMenuTrigger className="inline-flex items-center gap-1 h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md border border-border transition cursor-pointer">
                               <ThumbsDown className="size-3" />
                               <span>Bad match</span>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-48 text-xs">
-                              <DropdownMenuLabel className="text-xs">Reason for rejection:</DropdownMenuLabel>
+                            <DropdownMenuContent align="start" className="w-52 text-xs">
+                              <DropdownMenuLabel className="text-xs font-semibold">Train agent to avoid:</DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               {[
                                 "Not relevant to pain point",
@@ -567,14 +592,14 @@ export default function TodayPage() {
                           </Button>
                         </div>
 
-                        {/* Positive actions: Edit then Approve & Instant Approve */}
+                        {/* Positive Actions */}
                         <div className="flex items-center gap-2">
                           {!isEditing && draft && (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleStartEdit(opp.id, draft.body)}
-                              className="h-8 text-xs gap-1.5 cursor-pointer"
+                              className="h-8 text-xs gap-1.5 cursor-pointer rounded-lg"
                             >
                               <Edit3 className="size-3.5" /> Edit Draft
                             </Button>
@@ -583,136 +608,240 @@ export default function TodayPage() {
                           <Button
                             size="sm"
                             onClick={() => approveOpportunity(opp.id)}
-                            className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium cursor-pointer shadow-xs"
+                            className="h-8 text-xs gap-1.5 bg-primary text-primary-foreground font-semibold cursor-pointer rounded-lg shadow-xs hover:bg-primary/90"
                           >
-                            <CheckCircle2 className="size-3.5" /> Approve & Send
+                            <CheckCircle2 className="size-3.5" /> Approve & Dispatch
                           </Button>
                         </div>
-                      </CardFooter>
+                      </div>
                     </Card>
                   );
-                })}
-              </div>
-            )}
-          </div>
+                })
+              )}
+            </div>
 
-          {/* Right Column: Quota, WhatsApp Mobile Sync, Agent Health */}
-          <div className="lg:col-span-4 space-y-4">
-            {/* 1. Daily Actions & Quota Card */}
-            <Card className="shadow-none">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  <span>Quota & Today&apos;s Usage</span>
-                  <Zap className="size-4 text-amber-500 fill-amber-500" />
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Resets on 1st of every month
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 space-y-3 text-xs">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-muted-foreground">Monthly Actions:</span>
-                    <span className="font-semibold text-foreground">
-                      {quota.monthlyUsed} / {quota.monthlyLimit}
-                    </span>
-                  </div>
-                  <Progress
-                    value={Math.round((quota.monthlyUsed / quota.monthlyLimit) * 100)}
-                    className="h-1.5"
-                  />
+            {/* Right 4 cols: Side Cards */}
+            <div className="lg:col-span-4 space-y-4">
+              {/* Card 1: Platform Distribution Donut */}
+              <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs">
+                <CardHeader className="p-0 pb-3">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Signal Channel Distribution
+                  </CardTitle>
+                </CardHeader>
+                <div className="h-44 w-full flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <PieChart>
+                      <Pie
+                        data={platformDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {platformDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-
-                <div className="pt-2 border-t border-border grid grid-cols-2 gap-2">
-                  <div className="p-2 rounded bg-muted/40 border border-border">
-                    <span className="text-muted-foreground block text-[11px]">Approved Today</span>
-                    <span className="text-base font-semibold text-foreground">{approvedToday}</span>
-                  </div>
-                  <div className="p-2 rounded bg-muted/40 border border-border">
-                    <span className="text-muted-foreground block text-[11px]">Free Lifetime Left</span>
-                    <span className="text-base font-semibold text-foreground">
-                      {quota.lifetimeLimit - quota.lifetimeUsed}
-                    </span>
-                  </div>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-[11px]">
+                  {platformDistribution.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-muted-foreground">{item.name}:</span>
+                      <span className="font-bold text-foreground">{item.value}%</span>
+                    </div>
+                  ))}
                 </div>
+              </Card>
 
-                <Link href="/billing" className="block pt-1">
-                  <Button variant="outline" size="sm" className="w-full text-xs cursor-pointer">
-                    Manage Plan & Billing
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* 2. WhatsApp Mobile Sync Card (Same queue on phone) */}
-            <Card className="shadow-none bg-emerald-500/5 border-emerald-500/20">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-2">
-                  <MessageCircle className="size-4 text-emerald-600" />
-                  WhatsApp Approval Sync
-                </CardTitle>
-                <CardDescription className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
-                  Approve matches directly on WhatsApp while on the go.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 space-y-2 text-xs text-muted-foreground">
-                <p>
-                  Every morning at <strong>9:00 AM</strong>, your agent sends a 4-item digest. Reply <code className="px-1 py-0.5 rounded bg-muted border font-mono">1</code> to approve draft 1, or <code className="px-1 py-0.5 rounded bg-muted border font-mono">edit 1</code> to rewrite.
-                </p>
-                <div className="pt-2">
-                  <Link href="/channels">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full text-xs border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 cursor-pointer"
-                    >
-                      Configure WhatsApp Bot
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 3. Agent Status Widget */}
-            <Card className="shadow-none">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  <span>Agent Scanner</span>
-                  <Radio className="size-4 text-primary" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 space-y-2.5 text-xs text-muted-foreground">
-                <div className="flex justify-between items-center py-1 border-b border-border/60">
-                  <span>Harness Status</span>
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                    Active Scanning
+              {/* Card 2: WhatsApp Mobile Sync */}
+              <Card className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    <MessageCircle className="size-4 text-emerald-600" />
+                    WhatsApp Sync
+                  </span>
+                  <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px]">
+                    Connected
                   </Badge>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-border/60">
-                  <span>Active Watchlist</span>
-                  <span className="font-medium text-foreground">{agentStatus.sourcesCount} sources</span>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-border/60">
-                  <span>Last Run</span>
-                  <span className="font-medium text-foreground">{agentStatus.lastRun}</span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span>Next Scheduled Crawl</span>
-                  <span className="font-medium text-foreground">In {agentStatus.nextRun}</span>
-                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Morning digests deliver 4 top matches directly to your phone at <strong>9:00 AM</strong>. Reply <code className="px-1 bg-muted rounded font-mono">1</code> to approve.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={sendWhatsAppTestMessage}
+                  className="w-full text-xs gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 cursor-pointer rounded-lg"
+                >
+                  <Send className="size-3" /> Test WhatsApp Dispatch
+                </Button>
+              </Card>
 
-                <div className="pt-2">
-                  <Link href="/activity">
-                    <Button variant="outline" size="sm" className="w-full text-xs cursor-pointer">
-                      Inspect Activity Timeline
-                    </Button>
+              {/* Card 3: Quick Navigation Cards */}
+              <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                  Quick Navigation
+                </span>
+                <div className="space-y-1 text-xs">
+                  <Link
+                    href="/opportunities"
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition text-foreground"
+                  >
+                    <span>All Discovered Opportunities</span>
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                  </Link>
+                  <Link
+                    href="/conversations"
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition text-foreground"
+                  >
+                    <span>Conversations & Pipeline</span>
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                  </Link>
+                  <Link
+                    href="/verdict"
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition text-foreground"
+                  >
+                    <span>Market Evidence & Verdict Model</span>
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
                   </Link>
                 </div>
-              </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* TAB 2: TRENDS & DISCOVERY CHARTS */}
+        <TabsContent value="analytics" className="mt-0 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* 14-Day Signal Volume Area Chart */}
+            <Card className="lg:col-span-8 rounded-xl border border-border/70 bg-card p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-foreground">
+                    14-Day Signal Discovery & Approval Velocity
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Total discussions monitored vs high-relevance approved outreach.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-primary" />
+                    <span>Surfaced</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-emerald-500" />
+                    <span>Approved</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <AreaChart data={trendData}>
+                    <defs>
+                      <linearGradient id="colorSignals" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.0} />
+                      </linearGradient>
+                      <linearGradient id="colorApproved" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="day" stroke="#888888" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#888888" fontSize={11} tickLine={false} />
+                    <RechartsTooltip />
+                    <Area
+                      type="monotone"
+                      dataKey="signals"
+                      stroke="#0ea5e9"
+                      fillOpacity={1}
+                      fill="url(#colorSignals)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="approved"
+                      stroke="#10b981"
+                      fillOpacity={1}
+                      fill="url(#colorApproved)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* Source Yield Bar Chart */}
+            <Card className="lg:col-span-4 rounded-xl border border-border/70 bg-card p-6 shadow-xs space-y-4">
+              <div>
+                <h3 className="font-bold text-sm text-foreground">Source Approval Yield</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Percentage of surfaced posts approved per channel.
+                </p>
+              </div>
+
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={sourceYieldData} layout="vertical">
+                    <XAxis type="number" stroke="#888888" fontSize={11} unit="%" />
+                    <YAxis dataKey="source" type="category" stroke="#888888" fontSize={11} tickLine={false} width={65} />
+                    <RechartsTooltip />
+                    <Bar dataKey="yield" fill="#0ea5e9" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </Card>
           </div>
-        </div>
-      )}
+        </TabsContent>
+
+        {/* TAB 3: EDGE STATES SIMULATION SANDBOX */}
+        <TabsContent value="edge_states" className="mt-0">
+          <Card className="rounded-xl border border-border/70 bg-card p-6 shadow-xs space-y-6">
+            <div>
+              <h3 className="font-bold text-sm text-foreground">
+                Edge State Preview & Simulator
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Test and verify edge states designed in <code>dashboard-pages.md</code> (no mission, first scan, empty queue, paused, quota exhausted, channel disconnected).
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { id: "normal", label: "Normal Queue", desc: "Default operational view" },
+                { id: "first_scan", label: "First Scan Running", desc: "Crawling in progress" },
+                { id: "empty_queue", label: "Empty Queue", desc: "All caught up" },
+                { id: "mission_paused", label: "Mission Paused", desc: "Harness halted" },
+                { id: "quota_used_up", label: "Quota Exhausted", desc: "100/100 reached" },
+                { id: "channel_disconnected", label: "Channel Offline", desc: "Needs OAuth reauth" },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setEdgeState(s.id as any);
+                    setActiveTab("queue");
+                  }}
+                  className={`p-3 rounded-xl border text-left space-y-1 transition cursor-pointer ${
+                    edgeState === s.id
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <span className="font-bold text-xs block text-foreground">{s.label}</span>
+                  <span className="text-[11px] text-muted-foreground block">{s.desc}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

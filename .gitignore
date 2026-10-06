@@ -37,15 +37,15 @@ next-env.d.ts
 .agents/
 .claude/
 .next/
-
+.gstack/
 
 AGENTS.md
 CLAUDE.md
 
-001_app_schema.sql
-002_ai_schema.sql
-api-endpoints.md
-CLAUDE.md
-dashboard-pages.md
-mvp-plan.md
-validate-and-find-customers.md
+001_app_schema.sql/
+002_ai_schema.sql/
+api-endpoints.md/
+CLAUDE.md/
+dashboard-pages.md/
+mvp-plan.md/
+validate-and-find-customers.md/

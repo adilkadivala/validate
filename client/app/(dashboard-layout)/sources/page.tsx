@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -42,7 +43,12 @@ import {
   TrendingUp,
   Search,
   ExternalLink,
+  Flame,
+  Layers,
+  BarChart3,
+  CheckCircle2,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
 export default function SourcesPage() {
   const {
@@ -53,6 +59,7 @@ export default function SourcesPage() {
     rejectSuggestedSource,
   } = useDashboard();
 
+  const [activeTab, setActiveTab] = useState<string>("monitored");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [platform, setPlatform] = useState<Source["platform"]>("reddit");
   const [kind, setKind] = useState<Source["kind"]>("subreddit");
@@ -64,6 +71,13 @@ export default function SourcesPage() {
   const totalMatches = activeSources.reduce((acc, s) => acc + s.matches_found, 0);
   const totalApproved = activeSources.reduce((acc, s) => acc + s.approved_count, 0);
   const avgYield = totalMatches > 0 ? Math.round((totalApproved / totalMatches) * 100) : 0;
+
+  const yieldChartData = activeSources.map((s) => ({
+    name: s.value,
+    matches: s.matches_found,
+    approved: s.approved_count,
+    rate: s.matches_found > 0 ? Math.round((s.approved_count / s.matches_found) * 100) : 0,
+  }));
 
   const handleCreateSource = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,282 +98,419 @@ export default function SourcesPage() {
   const renderPlatformBadge = (plat: string) => {
     switch (plat) {
       case "reddit":
-        return <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-600 border-orange-500/20">Reddit</Badge>;
+        return <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-600 border-orange-500/20 font-mono">Reddit</Badge>;
       case "x":
-        return <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-600 border-sky-500/20">X</Badge>;
+        return <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-600 border-sky-500/20 font-mono">X</Badge>;
       case "hackernews":
-        return <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20">HN</Badge>;
+        return <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/20 font-mono">HN</Badge>;
       case "linkedin":
-        return <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20">LinkedIn</Badge>;
+        return <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20 font-mono">LinkedIn</Badge>;
       default:
-        return <Badge variant="outline" className="text-[10px]">{plat}</Badge>;
+        return <Badge variant="outline" className="text-[10px] font-mono">{plat}</Badge>;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* 1. Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-mono">
+              Crawler Watchlist
+            </Badge>
+            <span className="text-xs text-muted-foreground font-mono">
+              Crawled every 15 minutes
+            </span>
+          </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Sources & Watchlist
+            Sources & Channel Watchlist
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Configure subreddits, keywords, and account feeds the autonomous crawler inspects.
+            Configure subreddits, keywords, and account feeds the autonomous crawler inspects for buyer signals.
           </p>
         </div>
 
         <Button
           size="sm"
           onClick={() => setIsAddOpen(true)}
-          className="text-xs gap-1.5 cursor-pointer"
+          className="text-xs gap-1.5 cursor-pointer h-8 bg-primary text-primary-foreground"
         >
           <Plus className="size-3.5" /> Add New Source
         </Button>
       </div>
 
-      {/* Yield Metrics Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 shadow-none">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Monitored Sources</span>
-            <Radio className="size-4 text-primary" />
+      {/* 2. Top Metric Cards Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Monitored Sources</span>
+              <Radio className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {activeSources.length}
+              </span>
+              <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-500/10 border-emerald-500/20 font-mono">
+                All Active
+              </Badge>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-foreground mt-1">
-            {activeSources.length}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            Across Reddit, X, and Hacker News
-          </div>
-        </Card>
-
-        <Card className="p-4 shadow-none">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Matches Surfaced</span>
-            <Search className="size-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold text-foreground mt-1">
-            {totalMatches}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {totalApproved} converted to outreach approvals
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Reddit, X, and Hacker News
           </div>
         </Card>
 
-        <Card className="p-4 shadow-none">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Average Source Yield</span>
-            <TrendingUp className="size-4 text-emerald-500" />
+        {/* Metric 2 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Discussions Found</span>
+              <Search className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {totalMatches}
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">
+                {totalApproved} converted
+              </span>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-            {avgYield}%
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Processed via mission embeddings
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
+        </Card>
+
+        {/* Metric 3 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Average Channel Yield</span>
+              <TrendingUp className="size-4 text-emerald-500" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 font-mono">
+                {avgYield}%
+              </span>
+              <span className="text-xs text-emerald-600 font-mono font-medium">High Relevance</span>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
             Approval rate on surfaced items
+          </div>
+        </Card>
+
+        {/* Metric 4 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>AI Recommendations</span>
+              <Sparkles className="size-4 text-amber-500" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {suggestedSources.length}
+              </span>
+              <Badge variant="outline" className="text-[10px] text-amber-600 bg-amber-500/10 border-amber-500/20 font-mono">
+                New Clusters
+              </Badge>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Discovered from outbound replies
           </div>
         </Card>
       </div>
 
-      {/* Section: Agent Suggested Sources */}
-      {suggestedSources.length > 0 && (
-        <Card className="shadow-none border-primary/20 bg-primary/5">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-primary">
-              <Sparkles className="size-4" />
-              Agent Suggested Sources ({suggestedSources.length})
-            </CardTitle>
-            <CardDescription className="text-xs text-foreground/80">
-              The crawler identified high-intent discussions clustering in these unmonitored channels.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 space-y-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* 3. Main Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val || "monitored")} className="w-full space-y-4">
+        <div className="border-b border-border/60 pb-3">
+          <TabsList className="bg-muted/50 p-1 rounded-xl h-auto flex-wrap">
+            <TabsTrigger
+              value="monitored"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Radio className="size-3.5" />
+              Active Watchlist ({activeSources.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="suggestions"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Sparkles className="size-3.5" />
+              AI Suggestions ({suggestedSources.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="analytics"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <BarChart3 className="size-3.5" />
+              Yield Analytics
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* TAB 1: ACTIVE WATCHLIST */}
+        <TabsContent value="monitored" className="space-y-4">
+          <Card className="rounded-xl border border-border/70 bg-card shadow-xs overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead className="w-28 text-xs">Channel</TableHead>
+                  <TableHead className="text-xs">Source / Keyword Target</TableHead>
+                  <TableHead className="w-28 text-xs">Status</TableHead>
+                  <TableHead className="w-48 text-xs">Discussions & Yield</TableHead>
+                  <TableHead className="w-28 text-right text-xs">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeSources.map((source) => {
+                  const yieldRate =
+                    source.matches_found > 0
+                      ? Math.round((source.approved_count / source.matches_found) * 100)
+                      : 0;
+
+                  return (
+                    <TableRow key={source.id} className="hover:bg-muted/20 transition">
+                      <TableCell className="py-3.5">
+                        {renderPlatformBadge(source.platform)}
+                      </TableCell>
+
+                      <TableCell className="py-3.5">
+                        <div className="font-semibold text-xs text-foreground font-mono">
+                          {source.value}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground capitalize">
+                          {source.kind} • Added by {source.created_by}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="py-3.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-mono capitalize ${
+                            source.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {source.status}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="py-3.5">
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-foreground">{source.approved_count} approved</span>
+                            <span className="text-muted-foreground">{yieldRate}% yield</span>
+                          </div>
+                          <Progress value={yieldRate} className="h-1.5 rounded-full" />
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-right py-3.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleSource(source.id)}
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          {source.status === "active" ? (
+                            <span className="flex items-center gap-1 text-amber-600">
+                              <PauseCircle className="size-3.5" /> Pause
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-emerald-600">
+                              <PlayCircle className="size-3.5" /> Resume
+                            </span>
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 2: AI SUGGESTIONS */}
+        <TabsContent value="suggestions" className="space-y-4">
+          {suggestedSources.length === 0 ? (
+            <Card className="p-8 text-center border-dashed rounded-xl shadow-none">
+              <CheckCircle2 className="size-8 text-muted-foreground mx-auto mb-2" />
+              <h3 className="text-sm font-semibold text-foreground">No pending AI suggestions</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                The agent is continuously scanning connected platforms and will recommend new channels when high-intent clusters emerge.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {suggestedSources.map((source) => (
-                <div
-                  key={source.id}
-                  className="p-3 rounded-lg border border-border bg-background flex items-center justify-between gap-3 text-xs"
-                >
-                  <div className="truncate">
-                    <div className="flex items-center gap-2 mb-1">
+                <Card key={source.id} className="rounded-xl border border-primary/20 bg-primary/5 p-5 shadow-xs space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
                       {renderPlatformBadge(source.platform)}
-                      <span className="font-semibold text-foreground truncate">
-                        {source.value}
-                      </span>
+                      <Badge variant="outline" className="text-[10px] font-mono text-primary border-primary/20">
+                        Discovered Signal Cluster
+                      </Badge>
                     </div>
-                    <span className="text-[11px] text-muted-foreground capitalize">
-                      {source.kind} • Detected {source.matches_found} candidate discussions
-                    </span>
+
+                    <h4 className="text-base font-bold text-foreground font-mono">
+                      {source.value}
+                    </h4>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      High concentration of prospective buyers actively discussing integration test flakiness and CI queue delays.
+                    </p>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      size="sm"
-                      onClick={() => acceptSuggestedSource(source.id)}
-                      className="h-7 text-xs gap-1 cursor-pointer bg-primary text-primary-foreground"
-                    >
-                      <Check className="size-3" /> Accept
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => rejectSuggestedSource(source.id)}
-                      className="h-7 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="size-3" /> Dismiss
-                    </Button>
+                  <div className="pt-3 border-t border-primary/10 flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      ~12 matches/week estimated
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => rejectSuggestedSource(source.id)}
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        Dismiss
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => acceptSuggestedSource(source.id)}
+                        className="h-7 px-2.5 text-xs gap-1 cursor-pointer bg-primary text-primary-foreground"
+                      >
+                        <Check className="size-3" /> Approve & Monitor
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </TabsContent>
 
-      {/* Main Watchlist Table */}
-      <Card className="shadow-none overflow-hidden">
-        <CardHeader className="p-4 pb-3 border-b border-border bg-muted/20">
-          <CardTitle className="text-sm font-semibold">Active Watchlist</CardTitle>
-          <CardDescription className="text-xs">
-            Crawled continuously by FastAPI background runner according to guardrail quiet hours.
-          </CardDescription>
-        </CardHeader>
-        <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead>Channel / Query</TableHead>
-              <TableHead className="w-28">Platform</TableHead>
-              <TableHead className="w-28">Type</TableHead>
-              <TableHead className="w-40">Yield Performance</TableHead>
-              <TableHead className="w-32">Last Scanned</TableHead>
-              <TableHead className="w-28">Status</TableHead>
-              <TableHead className="w-20 text-right">Toggle</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {activeSources.map((source) => (
-              <TableRow key={source.id} className="text-xs">
-                <TableCell className="font-semibold text-foreground font-mono">
-                  {source.value}
-                </TableCell>
-                <TableCell>{renderPlatformBadge(source.platform)}</TableCell>
-                <TableCell className="capitalize text-muted-foreground">
-                  {source.kind}
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span>{source.approved_count}/{source.matches_found} matches</span>
-                      <span className="font-semibold text-foreground">{source.approval_rate}%</span>
-                    </div>
-                    <Progress value={source.approval_rate} className="h-1.5" />
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground font-mono text-[11px]">
-                  {source.last_scanned_at}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] capitalize ${
-                      source.status === "active"
-                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {source.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => toggleSource(source.id)}
-                    className="h-7 text-xs cursor-pointer"
-                  >
-                    {source.status === "active" ? (
-                      <PauseCircle className="size-4 text-amber-500" />
-                    ) : (
-                      <PlayCircle className="size-4 text-emerald-500" />
-                    )}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+        {/* TAB 3: YIELD ANALYTICS */}
+        <TabsContent value="analytics" className="space-y-4">
+          <Card className="rounded-xl border border-border/70 bg-card shadow-xs">
+            <CardHeader className="p-4 sm:p-5 border-b border-border/60 bg-muted/10">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <BarChart3 className="size-4 text-primary" />
+                Channel Yield Comparison: Found vs Approved
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Analyzing the quality ratio of discussions surfaced across each monitored community.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="h-72 w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <BarChart data={yieldChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#888888" interval={0} angle={-10} textAnchor="end" height={40} />
+                    <YAxis tick={{ fontSize: 11 }} stroke="#888888" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderColor: "hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                    <Bar dataKey="matches" name="Discussions Found" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="approved" name="Approved Outreach" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-      {/* Add Source Dialog */}
+      {/* 4. Add Source Modal */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="size-5 text-primary" />
-              Add Monitored Source
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Directs the agent crawler to track a new community, query, or account.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleCreateSource}>
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold">Add Monitored Source</DialogTitle>
+              <DialogDescription className="text-xs">
+                The agent will periodically query this channel for matching prospect discussions.
+              </DialogDescription>
+            </DialogHeader>
 
-          <form onSubmit={handleCreateSource} className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-foreground block mb-1">Platform</label>
-                <Select value={platform} onValueChange={(val: any) => setPlatform(val)}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue />
+            <div className="space-y-4 py-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Platform</label>
+                <Select value={platform} onValueChange={(val) => setPlatform(val as any)}>
+                  <SelectTrigger className="h-8 text-xs rounded-lg">
+                    <SelectValue placeholder="Platform" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="reddit">Reddit</SelectItem>
-                    <SelectItem value="x">X (Twitter)</SelectItem>
+                    <SelectItem value="x">X / Twitter</SelectItem>
                     <SelectItem value="hackernews">Hacker News</SelectItem>
                     <SelectItem value="linkedin">LinkedIn</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-foreground block mb-1">Source Kind</label>
-                <Select value={kind} onValueChange={(val: any) => setKind(val)}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue />
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Target Type</label>
+                <Select value={kind} onValueChange={(val) => setKind(val as any)}>
+                  <SelectTrigger className="h-8 text-xs rounded-lg">
+                    <SelectValue placeholder="Kind" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="subreddit">Subreddit</SelectItem>
-                    <SelectItem value="keyword">Keyword</SelectItem>
-                    <SelectItem value="account">Account</SelectItem>
-                    <SelectItem value="query">Search Query</SelectItem>
+                    <SelectItem value="subreddit">Subreddit (e.g. r/QualityAssurance)</SelectItem>
+                    <SelectItem value="keyword">Keyword Query (e.g. &apos;flaky cypress tests&apos;)</SelectItem>
+                    <SelectItem value="account">Account Feed (e.g. @tech_founder)</SelectItem>
+                    <SelectItem value="group">Group / Community</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Identifier / Search Value</label>
+                <Input
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={
+                    kind === "subreddit"
+                      ? "r/softwaretesting"
+                      : kind === "keyword"
+                      ? "playwright flaky CI"
+                      : "@cto_handle"
+                  }
+                  className="h-8 text-xs rounded-lg"
+                  required
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-foreground block mb-1">
-                Value / Handle / Query String
-              </label>
-              <Input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={
-                  kind === "subreddit"
-                    ? "e.g. r/Frontend"
-                    : kind === "account"
-                    ? "e.g. @rauchg"
-                    : "e.g. 'Playwright test timeout'"
-                }
-                className="text-xs h-9 font-mono"
-                required
-              />
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0 pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddOpen(false)}
+                className="text-xs cursor-pointer"
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!value.trim()}>
-                Add to Watchlist
+              <Button
+                type="submit"
+                size="sm"
+                className="text-xs cursor-pointer bg-primary text-primary-foreground"
+              >
+                Add Source to Watchlist
               </Button>
             </DialogFooter>
           </form>

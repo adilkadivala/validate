@@ -6,6 +6,7 @@ import { AgentRun } from "@/lib/dashboard-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -26,19 +27,27 @@ import {
   Layers,
   ArrowRight,
   ExternalLink,
+  Flame,
+  Zap,
 } from "lucide-react";
 
 export default function ActivityPage() {
   const { agentRuns, triggerManualScan } = useDashboard();
-  const [filterKind, setFilterKind] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<string>("all");
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const filteredRuns = agentRuns.filter((r) => {
-    if (filterKind === "blocked") return r.status === "blocked";
-    if (filterKind !== "all") return r.kind === filterKind;
+    if (activeTab === "blocked") return r.status === "blocked";
+    if (activeTab !== "all") return r.kind === activeTab;
     return true;
   });
+
+  const totalRuns = agentRuns.length;
+  const succeededRuns = agentRuns.filter((r) => r.status === "succeeded").length;
+  const blockedRuns = agentRuns.filter((r) => r.status === "blocked").length;
+  const totalTokens = agentRuns.reduce((acc, r) => acc + r.tokens_in + r.tokens_out, 0);
+  const totalCostUsd = agentRuns.reduce((acc, r) => acc + r.cost_micros, 0) / 1000000;
 
   const handleOpenDetail = (run: AgentRun) => {
     setSelectedRun(run);
@@ -48,28 +57,36 @@ export default function ActivityPage() {
   const renderStatusBadge = (status: AgentRun["status"]) => {
     switch (status) {
       case "succeeded":
-        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs font-mono">Succeeded</Badge>;
+        return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-mono">Succeeded</Badge>;
       case "blocked":
-        return <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-xs font-mono">Blocked by Policy</Badge>;
+        return <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] font-mono">Blocked by Policy</Badge>;
       case "running":
-        return <Badge className="bg-sky-500/10 text-sky-600 border-sky-500/20 text-xs font-mono animate-pulse">Running</Badge>;
+        return <Badge className="bg-sky-500/10 text-sky-600 border-sky-500/20 text-[10px] font-mono animate-pulse">Running</Badge>;
       case "failed":
-        return <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs font-mono">Failed</Badge>;
+        return <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] font-mono">Failed</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="text-[10px] font-mono">{status}</Badge>;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* 1. Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-mono">
+              Autonomous Audit Log
+            </Badge>
+            <span className="text-xs text-muted-foreground font-mono">
+              ai.agent_runs
+            </span>
+          </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Agent Activity & Audit Log
+            Agent Activity & Execution Log
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Transparent, plain-language timeline of autonomous actions, tool calls, and policy checks from <code>ai.agent_runs</code>.
+            Transparent, step-by-step timeline of autonomous actions, tool calls, and policy checks.
           </p>
         </div>
 
@@ -78,7 +95,7 @@ export default function ActivityPage() {
             variant="outline"
             size="sm"
             onClick={triggerManualScan}
-            className="text-xs gap-1.5 cursor-pointer"
+            className="text-xs gap-1.5 cursor-pointer h-8"
           >
             <RefreshCw className="size-3.5" /> Trigger Scan
           </Button>
@@ -97,111 +114,215 @@ export default function ActivityPage() {
               downloadAnchor.click();
               downloadAnchor.remove();
             }}
-            className="text-xs gap-1.5 cursor-pointer"
+            className="text-xs gap-1.5 cursor-pointer h-8"
           >
             <Download className="size-3.5" /> Export Log
           </Button>
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-1.5 border-b border-border pb-2 text-xs">
-        {[
-          { id: "all", label: `All Activity (${agentRuns.length})` },
-          { id: "scan", label: "Crawls & Scans" },
-          { id: "execute_action", label: "Dispatched Outreach" },
-          { id: "blocked", label: `Blocked by Guardrails (${agentRuns.filter((r) => r.status === "blocked").length})` },
-          { id: "reply_poll", label: "Inbound Reply Checks" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setFilterKind(tab.id)}
-            className={`px-3 py-1.5 rounded-md font-medium transition cursor-pointer ${
-              filterKind === tab.id
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* 2. Top Metric Cards Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Total Executions</span>
+              <Activity className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {totalRuns}
+              </span>
+              <Badge variant="outline" className="text-[10px] text-emerald-600 bg-emerald-500/10 border-emerald-500/20 font-mono">
+                All Audited
+              </Badge>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Continuous background daemon
+          </div>
+        </Card>
 
-      {/* Timeline List */}
-      <div className="space-y-4">
-        {filteredRuns.map((run) => (
-          <Card
-            key={run.id}
-            onClick={() => handleOpenDetail(run)}
-            className={`cursor-pointer hover:border-primary/40 transition shadow-none p-4 sm:p-5 space-y-3 ${
-              run.status === "blocked" ? "border-rose-500/20 bg-rose-500/5" : ""
-            }`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                {renderStatusBadge(run.status)}
-                <span className="font-mono text-xs text-muted-foreground">
-                  {run.id} • {run.trigger_type} trigger
-                </span>
-              </div>
+        {/* Metric 2 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Success Rate</span>
+              <CheckCircle2 className="size-4 text-emerald-500" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 font-mono">
+                {Math.round((succeededRuns / (totalRuns || 1)) * 100)}%
+              </span>
               <span className="text-xs text-muted-foreground font-mono">
-                {run.started_at}
+                {succeededRuns} runs clean
               </span>
             </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Zero fatal API exceptions
+          </div>
+        </Card>
 
-            <div>
-              <h3 className="font-semibold text-sm text-foreground flex items-center gap-2">
-                {run.description}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed font-normal">
-                {run.details}
-              </p>
+        {/* Metric 3 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>Policy Interventions</span>
+              <ShieldAlert className="size-4 text-rose-500" />
             </div>
-
-            {/* Blocked Explanation Alert if policy triggered */}
-            {run.blocked_reason && (
-              <div className="p-3 rounded-lg border border-rose-500/20 bg-rose-500/10 text-xs space-y-1">
-                <span className="font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
-                  <ShieldAlert className="size-3.5" />
-                  Why was this blocked?
-                </span>
-                <p className="text-foreground/90 font-normal leading-relaxed">
-                  {run.blocked_reason}
-                </p>
-                <div className="text-[11px] text-muted-foreground font-mono">
-                  Enforced policy: <code>{run.policy_triggered}</code> in <code>ai.policies</code>
-                </div>
-              </div>
-            )}
-
-            {/* Metrics Strip: Tokens, Latency, Cost */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-border text-[11px] text-muted-foreground font-mono">
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <Cpu className="size-3 text-primary" />
-                  {run.tokens_in + run.tokens_out} tokens
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="size-3" />
-                  {run.latency_ms}ms latency
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Coins className="size-3 text-amber-500" />
-                  ${(run.cost_micros / 1000000).toFixed(4)}
-                </span>
-              </div>
-
-              <span className="text-primary font-medium text-xs flex items-center gap-1">
-                Inspect steps <ArrowRight className="size-3" />
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {blockedRuns}
+              </span>
+              <span className="text-xs text-rose-600 font-mono font-medium">
+                Prevented
               </span>
             </div>
-          </Card>
-        ))}
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Safely intercepted by guardrails
+          </div>
+        </Card>
+
+        {/* Metric 4 */}
+        <Card className="rounded-xl border border-border/70 bg-card p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+              <span>LLM Compute Used</span>
+              <Cpu className="size-4 text-primary" />
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground font-mono">
+                {(totalTokens / 1000).toFixed(1)}k
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">
+                ${totalCostUsd.toFixed(3)}
+              </span>
+            </div>
+          </div>
+          <div className="pt-3 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+            Prompt tokens + completion
+          </div>
+        </Card>
       </div>
 
-      {/* Run Detail Modal */}
+      {/* 3. Main Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val || "all")} className="w-full space-y-4">
+        <div className="border-b border-border/60 pb-3">
+          <TabsList className="bg-muted/50 p-1 rounded-xl h-auto flex-wrap">
+            <TabsTrigger
+              value="all"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              All Activity ({agentRuns.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="scan"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              Crawls & Scans ({agentRuns.filter((r) => r.kind === "scan").length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="execute_action"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              Dispatched Outreach ({agentRuns.filter((r) => r.kind === "execute_action").length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="blocked"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              Blocked by Guardrails ({blockedRuns})
+            </TabsTrigger>
+            <TabsTrigger
+              value="reply_poll"
+              className="rounded-lg px-4 py-2 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              Inbound Polls ({agentRuns.filter((r) => r.kind === "reply_poll").length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Tab Content Display */}
+        <div className="space-y-3">
+          {filteredRuns.map((run) => (
+            <Card
+              key={run.id}
+              onClick={() => handleOpenDetail(run)}
+              className={`cursor-pointer hover:border-primary/40 transition shadow-xs p-5 rounded-xl border space-y-3 ${
+                run.status === "blocked"
+                  ? "border-rose-500/30 bg-rose-500/5"
+                  : "border-border/70 bg-card"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {renderStatusBadge(run.status)}
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {run.id} • {run.trigger_type} trigger
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground font-mono">
+                  {run.started_at}
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  {run.description}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed font-normal">
+                  {run.details}
+                </p>
+              </div>
+
+              {/* Blocked Explanation Alert if policy triggered */}
+              {run.blocked_reason && (
+                <div className="p-3.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs space-y-1">
+                  <span className="font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                    <ShieldAlert className="size-3.5" />
+                    Why was this action blocked?
+                  </span>
+                  <p className="text-foreground/90 font-normal leading-relaxed">
+                    {run.blocked_reason}
+                  </p>
+                  <div className="text-[11px] text-muted-foreground font-mono">
+                    Enforced policy: <code>{run.policy_triggered}</code> in <code>ai.policies</code>
+                  </div>
+                </div>
+              )}
+
+              {/* Metrics Strip: Tokens, Latency, Cost */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-2.5 border-t border-border/50 text-[11px] text-muted-foreground font-mono">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <Cpu className="size-3 text-primary" />
+                    {run.tokens_in + run.tokens_out} tokens
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="size-3" />
+                    {run.latency_ms}ms latency
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Coins className="size-3 text-amber-500" />
+                    ${(run.cost_micros / 1000000).toFixed(4)}
+                  </span>
+                </div>
+
+                <span className="text-primary font-medium text-xs flex items-center gap-1">
+                  Inspect trace steps <ArrowRight className="size-3" />
+                </span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </Tabs>
+
+      {/* 4. Run Detail Modal */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-lg">
           {selectedRun && (
@@ -222,60 +343,32 @@ export default function ActivityPage() {
               </DialogHeader>
 
               <div className="space-y-3 text-xs">
-                <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
-                  <span className="font-semibold text-foreground block">Execution Summary</span>
-                  <p className="text-muted-foreground leading-relaxed font-normal">
+                <div>
+                  <h4 className="font-semibold text-foreground mb-1">Summary Description</h4>
+                  <p className="text-muted-foreground leading-relaxed bg-muted/20 p-3 rounded-lg border border-border/50">
                     {selectedRun.details}
                   </p>
                 </div>
 
-                {/* Simplified Execution Steps */}
-                <div className="space-y-2">
-                  <span className="font-semibold text-foreground uppercase tracking-wider text-[11px]">
-                    Harness Execution Steps
-                  </span>
-                  <div className="space-y-2">
-                    <div className="p-2.5 rounded-lg border border-border bg-card flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="size-3.5 text-emerald-500" />
-                        <span className="font-medium text-foreground">1. Policy Pre-Check</span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">Passed (12ms)</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg border border-border bg-card flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="size-3.5 text-emerald-500" />
-                        <span className="font-medium text-foreground">2. Vector Context Retrieval</span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">Top 3 chunks (84ms)</span>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg border border-border bg-card flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="size-3.5 text-emerald-500" />
-                        <span className="font-medium text-foreground">3. LLM Inference & Calibration</span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">
-                        {selectedRun.tokens_in} tokens ({selectedRun.latency_ms}ms)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cost breakdown */}
-                <div className="p-3 rounded-lg border border-border bg-muted/10 grid grid-cols-3 gap-2 text-center">
+                {selectedRun.blocked_reason && (
                   <div>
-                    <span className="text-[10px] text-muted-foreground block">Input Tokens</span>
-                    <span className="font-bold text-foreground font-mono">{selectedRun.tokens_in}</span>
+                    <h4 className="font-semibold text-rose-600 mb-1">Policy Block Reason</h4>
+                    <p className="text-foreground/90 leading-relaxed bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">
+                      {selectedRun.blocked_reason}
+                    </p>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Output Tokens</span>
-                    <span className="font-bold text-foreground font-mono">{selectedRun.tokens_out}</span>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="p-2.5 rounded-lg border border-border bg-card">
+                    <span className="text-muted-foreground text-[10px] uppercase font-mono block">Compute Tokens</span>
+                    <span className="text-sm font-bold text-foreground font-mono">
+                      {selectedRun.tokens_in} in / {selectedRun.tokens_out} out
+                    </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Total Cost</span>
-                    <span className="font-bold text-primary font-mono">
+                  <div className="p-2.5 rounded-lg border border-border bg-card">
+                    <span className="text-muted-foreground text-[10px] uppercase font-mono block">Estimated Cost</span>
+                    <span className="text-sm font-bold text-foreground font-mono">
                       ${(selectedRun.cost_micros / 1000000).toFixed(4)}
                     </span>
                   </div>
